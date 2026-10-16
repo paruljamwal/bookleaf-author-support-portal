@@ -1,0 +1,3 @@
+# The API is a separate host. A request for /api on this site must not become index.html.
+/api/*  /api/:splat  404
+/*    /index.html   200

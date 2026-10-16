@@ -1,0 +1,422 @@
+openapi: 3.0.3
+info:
+  title: BookLeaf Author Support API
+  version: 1.0.0
+  description: REST API for the author portal and the admin support queue.
+servers:
+  - url: http://localhost:4000/api/v1
+tags:
+  - name: Auth
+  - name: Author
+  - name: Admin
+  - name: Realtime
+paths:
+  /health:
+    get:
+      tags: [Auth]
+      summary: Health check
+      security: []
+      responses:
+        "200":
+          description: Database is connected
+        "503":
+          description: Database is unavailable
+  /auth/csrf:
+    get:
+      tags: [Auth]
+      summary: Issue a CSRF token cookie
+      security: []
+      responses:
+        "200":
+          description: CSRF token
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Create an author account and sign in
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Register"
+      responses:
+        "201":
+          description: Author account created. Access and refresh cookies are set. The role is AUTHOR.
+        "400":
+          description: Invalid input, including a submitted role
+        "409":
+          description: Email is already registered
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Sign in
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Login"
+      responses:
+        "200":
+          description: Signed in. Access and refresh cookies are set.
+        "401":
+          description: Email or password is incorrect
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh the access cookie
+      responses:
+        "200":
+          description: Access cookie refreshed
+        "401":
+          description: Session expired
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Sign out
+      responses:
+        "200":
+          description: Cookies cleared
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Current user
+      responses:
+        "200":
+          description: Current user
+        "401":
+          description: Not signed in
+  /author/dashboard:
+    get:
+      tags: [Author]
+      summary: Author dashboard
+      responses:
+        "200":
+          description: Dashboard for the authenticated author
+  /author/books:
+    get:
+      tags: [Author]
+      summary: Books for the authenticated author
+      responses:
+        "200":
+          description: Book list
+  /author/books/{bookId}:
+    get:
+      tags: [Author]
+      summary: One book owned by the authenticated author
+      parameters:
+        - $ref: "#/components/parameters/BookId"
+      responses:
+        "200":
+          description: Book
+        "404":
+          description: Book was not found on this account
+  /author/tickets:
+    get:
+      tags: [Author]
+      summary: Tickets for the authenticated author
+      responses:
+        "200":
+          description: Ticket list without internal notes
+    post:
+      tags: [Author]
+      summary: Create a ticket
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTicket"
+      responses:
+        "201":
+          description: Ticket created
+        "400":
+          description: Validation error
+        "404":
+          description: Book is not on this account
+  /author/tickets/{ticketId}:
+    get:
+      tags: [Author]
+      summary: Ticket detail with author-visible replies
+      parameters:
+        - $ref: "#/components/parameters/TicketId"
+      responses:
+        "200":
+          description: Ticket
+        "404":
+          description: Ticket was not found
+  /admin/dashboard:
+    get:
+      tags: [Admin]
+      summary: Support metrics
+      responses:
+        "200":
+          description: Counts derived from tickets
+        "403":
+          description: Author cannot access admin routes
+  /admin/tickets:
+    get:
+      tags: [Admin]
+      summary: Ticket queue
+      parameters:
+        - in: query
+          name: status
+          schema:
+            $ref: "#/components/schemas/Status"
+        - in: query
+          name: category
+          schema:
+            $ref: "#/components/schemas/Category"
+        - in: query
+          name: priority
+          schema:
+            $ref: "#/components/schemas/Priority"
+        - in: query
+          name: dateFrom
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: dateTo
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        "200":
+          description: Paginated tickets
+  /admin/tickets/{ticketId}:
+    get:
+      tags: [Admin]
+      summary: Admin ticket detail
+      parameters:
+        - $ref: "#/components/parameters/TicketId"
+      responses:
+        "200":
+          description: Ticket, draft, replies, and internal notes
+    patch:
+      tags: [Admin]
+      summary: Override category, priority, or status
+      parameters:
+        - $ref: "#/components/parameters/TicketId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTicket"
+      responses:
+        "200":
+          description: Updated ticket
+  /admin/tickets/{ticketId}/assign:
+    post:
+      tags: [Admin]
+      summary: Assign the ticket to the current admin
+      parameters:
+        - $ref: "#/components/parameters/TicketId"
+      responses:
+        "200":
+          description: Assigned ticket
+  /admin/tickets/{ticketId}/notes:
+    post:
+      tags: [Admin]
+      summary: Add an internal note
+      parameters:
+        - $ref: "#/components/parameters/TicketId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MessageBody"
+      responses:
+        "201":
+          description: Ticket including the new note
+        "403":
+          description: Authors cannot add internal notes
+  /admin/tickets/{ticketId}/replies:
+    post:
+      tags: [Admin]
+      summary: Send an author-visible reply
+      parameters:
+        - $ref: "#/components/parameters/TicketId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MessageBody"
+      responses:
+        "201":
+          description: Reply stored
+  /admin/tickets/{ticketId}/draft:
+    post:
+      tags: [Admin]
+      summary: Generate a draft
+      parameters:
+        - $ref: "#/components/parameters/TicketId"
+      responses:
+        "200":
+          description: Ticket with a stored draft
+    patch:
+      tags: [Admin]
+      summary: Save a draft without sending it
+      parameters:
+        - $ref: "#/components/parameters/TicketId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [response]
+              properties:
+                response:
+                  type: string
+                  minLength: 20
+      responses:
+        "200":
+          description: Draft saved
+  /admin/tickets/{ticketId}/classify:
+    post:
+      tags: [Admin]
+      summary: Run classification again
+      parameters:
+        - $ref: "#/components/parameters/TicketId"
+      responses:
+        "200":
+          description: Classification updated unless an admin override exists
+  /realtime/status:
+    get:
+      tags: [Realtime]
+      summary: Whether Pusher is configured
+      security: []
+      responses:
+        "200":
+          description: Realtime status
+  /realtime/auth:
+    post:
+      tags: [Realtime]
+      summary: Authorize a private Pusher channel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [socket_id, channel_name]
+              properties:
+                socket_id:
+                  type: string
+                channel_name:
+                  type: string
+      responses:
+        "200":
+          description: Pusher auth payload
+        "403":
+          description: Channel is not allowed
+        "503":
+          description: Pusher is not configured
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: bookleaf_access
+  parameters:
+    BookId:
+      in: path
+      name: bookId
+      required: true
+      schema:
+        type: string
+    TicketId:
+      in: path
+      name: ticketId
+      required: true
+      schema:
+        type: string
+        pattern: "^TKT-\\d{4,}$"
+  schemas:
+    Register:
+      type: object
+      required: [name, email, password]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 80
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+    Login:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+    CreateTicket:
+      type: object
+      required: [bookId, subject, description]
+      properties:
+        bookId:
+          type: string
+          nullable: true
+        subject:
+          type: string
+        description:
+          type: string
+    UpdateTicket:
+      type: object
+      properties:
+        category:
+          $ref: "#/components/schemas/Category"
+        priority:
+          $ref: "#/components/schemas/Priority"
+        status:
+          $ref: "#/components/schemas/Status"
+    MessageBody:
+      type: object
+      required: [body]
+      properties:
+        body:
+          type: string
+    Category:
+      type: string
+      enum:
+        - ROYALTY_PAYMENTS
+        - ISBN_METADATA
+        - PRINTING_QUALITY
+        - DISTRIBUTION_AVAILABILITY
+        - BOOK_STATUS_PRODUCTION
+        - GENERAL_INQUIRY
+    Priority:
+      type: string
+      enum: [CRITICAL, HIGH, MEDIUM, LOW]
+    Status:
+      type: string
+      enum: [OPEN, IN_PROGRESS, RESOLVED, CLOSED]
+security:
+  - cookieAuth: []

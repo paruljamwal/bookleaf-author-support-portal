@@ -1,0 +1,8 @@
+# Publishes the Vite app only. The API is not part of this site.
+# @bookleaf/shared must be built first because the frontend imports its dist output.
+[build]
+  command = "npm run build --workspace=@bookleaf/shared && npm run build --workspace=frontend"
+  publish = "frontend/dist"
+
+[build.environment]
+  NODE_VERSION = "22"

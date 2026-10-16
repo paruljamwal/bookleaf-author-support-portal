@@ -1,0 +1,30 @@
+{
+  "name": "bookleaf-author-support",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BookLeaf Author Support and Communication Portal",
+  "workspaces": [
+    "frontend",
+    "backend",
+    "shared"
+  ],
+  "scripts": {
+    "setup": "node scripts/ensure-env.mjs",
+    "dev": "npm run setup && npm run build -w @bookleaf/shared && concurrently -n shared,api,web -c gray,blue,green \"npm run dev -w @bookleaf/shared\" \"npm run dev -w backend\" \"npm run dev -w frontend\"",
+    "build": "npm run build -w @bookleaf/shared && npm run build -w backend && npm run build -w frontend",
+    "start": "npm run start -w backend",
+    "seed": "npm run build -w @bookleaf/shared && npm run seed -w backend",
+    "test": "npm run build -w @bookleaf/shared && npm run test -w backend && npm run test -w frontend",
+    "lint": "npm run lint -w backend && npm run lint -w frontend && npm run lint -w @bookleaf/shared",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "npm run typecheck -w @bookleaf/shared && npm run typecheck -w backend && npm run typecheck -w frontend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "prettier": "^3.5.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

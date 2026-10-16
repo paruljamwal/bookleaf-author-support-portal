@@ -1,0 +1,13 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+backend/.data/
+frontend/dist/
+.vite/
+*.tsbuildinfo
+.mongo-uri
