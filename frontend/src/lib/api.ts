@@ -6,6 +6,9 @@ export const api = axios.create({
   withCredentials: true,
 });
 
+/** Token from GET /auth/csrf. A cross-origin API cookie is not visible to document.cookie. */
+let csrfToken: string | null = null;
+
 function readCookie(name: string): string | null {
   const row = document.cookie.split("; ").find((part) => part.startsWith(`${name}=`));
   return row ? decodeURIComponent(row.slice(name.length + 1)) : null;
@@ -14,10 +17,19 @@ function readCookie(name: string): string | null {
 api.interceptors.request.use((config) => {
   const method = (config.method ?? "get").toLowerCase();
   if (!["get", "head", "options"].includes(method)) {
-    const token = readCookie("bookleaf_csrf");
+    const token = csrfToken ?? readCookie("bookleaf_csrf");
     if (token) config.headers["X-CSRF-Token"] = token;
   }
   return config;
+});
+
+api.interceptors.response.use((response) => {
+  const url = response.config.url ?? "";
+  const token = (response.data as { csrfToken?: unknown } | undefined)?.csrfToken;
+  if (url.includes("/auth/csrf") && typeof token === "string" && token.length > 0) {
+    csrfToken = token;
+  }
+  return response;
 });
 
 let refreshRequest: Promise<void> | null = null;

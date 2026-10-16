@@ -1,4 +1,6 @@
 # Publishes the Vite app only. The API is not part of this site.
+# Leave the Netlify base directory empty so this file is read from the repository root.
+# Set VITE_API_URL in the Netlify UI to the deployed API origin plus /api/v1, then rebuild.
 # @bookleaf/shared must be built first because the frontend imports its dist output.
 [build]
   command = "npm run build --workspace=@bookleaf/shared && npm run build --workspace=frontend"
