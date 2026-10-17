@@ -136,7 +136,7 @@ These passwords are for local evaluation. Change them before any shared deployme
 | Author | `priya.sharma@email.com` | `BookLeaf#Author1` |
 | Every other author | The email in the sample file | `BookLeaf#Author1` |
 
-The admin account is created by the seed. It is not in the sample dataset, and a client cannot choose its own role.
+There is no admin sign-up screen. The sign-up form always creates an author. Run `npm run seed` to create the one admin account, `ops@bookleaf.demo`. The seed is the only way to create it. The account is not in the sample dataset, and a client cannot choose its own role. Running the seed again updates that same admin and resets the password above.
 
 ## Tests, lint, and types
 
@@ -189,7 +189,16 @@ The HTTP contract is in [docs/openapi.yaml](docs/openapi.yaml) and summarized in
 
 ## Deployment
 
-The live site is [https://bookleaf-author-support-portal.netlify.app](https://bookleaf-author-support-portal.netlify.app). The browser calls `/api/v1` on that host. Netlify proxies those requests to the API at [https://bookleaf-author-support-portal-api.onrender.com](https://bookleaf-author-support-portal-api.onrender.com). Session cookies are stored on the Netlify host. A direct browser call to the Render host is a third-party request, and Chrome drops the cookie.
+The live site is [https://bookleaf-author-support-portal.netlify.app](https://bookleaf-author-support-portal.netlify.app). Sign in at [https://bookleaf-author-support-portal.netlify.app/login](https://bookleaf-author-support-portal.netlify.app/login).
+
+| Role | Page | Sign in |
+| --- | --- | --- |
+| Admin | [https://bookleaf-author-support-portal.netlify.app/admin](https://bookleaf-author-support-portal.netlify.app/admin) | `ops@bookleaf.demo` / `BookLeaf#Admin1` |
+| Author | [https://bookleaf-author-support-portal.netlify.app/author](https://bookleaf-author-support-portal.netlify.app/author) | A sample author, such as `priya.sharma@email.com` / `BookLeaf#Author1` |
+
+The admin row works only after `npm run seed` has been run against the production database. Until then, that email and password are rejected.
+
+The browser calls `/api/v1` on that host. Netlify proxies those requests to the API at [https://bookleaf-author-support-portal-api.onrender.com](https://bookleaf-author-support-portal-api.onrender.com). Session cookies are stored on the Netlify host. A direct browser call to the Render host is a third-party request, and Chrome drops the cookie.
 
 Health check: `GET https://bookleaf-author-support-portal-api.onrender.com/api/v1/health`.
 
@@ -227,7 +236,7 @@ After the first successful boot, seed that database once from a machine that has
 npm run seed
 ```
 
-`npm run seed` uses `tsx`, which is a development dependency, so it is not part of the Render production install. The seed is idempotent: it keeps the 10 sample authors, 18 books, and the admin account, and it resets the demo passwords. It does not delete tickets.
+`npm run seed` uses `tsx`, which is a development dependency, so it is not part of the Render production install. Run it from a checkout that has the production `MONGODB_URI` in `backend/.env`. That command creates the admin `ops@bookleaf.demo` with password `BookLeaf#Admin1`. It also keeps the 10 sample authors and 18 books, resets the demo passwords, and does not delete tickets. Sign-up on the website cannot create this admin.
 
 Pushing `main` does not restart Render unless auto-deploy is on. If the live API still returns the previous behavior, open the service and choose **Manual Deploy** for the latest commit.
 
