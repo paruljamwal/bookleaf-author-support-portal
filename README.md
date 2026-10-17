@@ -74,7 +74,7 @@ Backend:
 | `JWT_ACCESS_TTL` | Access token lifetime, default `15m` |
 | `JWT_REFRESH_TTL` | Refresh token lifetime, default `7d` |
 | `COOKIE_SECURE` | `true` in production HTTPS |
-| `COOKIE_SAMESITE` | `lax` for local proxying. Use `none` with `COOKIE_SECURE=true` for cross-site production cookies |
+| `COOKIE_SAMESITE` | `lax`. Production traffic reaches the API through the Netlify host, so the cookie is first-party |
 | `CORS_ORIGIN` | Frontend origin. Comma-separate more than one |
 | `AI_BASE_URL` | OpenAI-compatible base URL, default `https://api.openai.com/v1` |
 | `AI_API_KEY` | Model key. Empty enables the labeled fallback |
@@ -155,7 +155,7 @@ npm run build
 npm start
 ```
 
-`npm run build` typechecks and bundles the API with esbuild, and builds the frontend with Vite. `npm start` runs `backend/dist/server.js`. Serve `frontend/dist` separately and set `VITE_API_URL` at build time.
+`npm run build` typechecks and bundles the API with esbuild, and builds the frontend with Vite. `npm start` runs `backend/dist/server.js`. The production site serves `frontend/dist` and proxies `/api` to that API. Leave `VITE_API_URL` empty.
 
 The frontend production server can be previewed with `npm run preview -w frontend` after the build.
 
@@ -189,21 +189,55 @@ The HTTP contract is in [docs/openapi.yaml](docs/openapi.yaml) and summarized in
 
 ## Deployment
 
-This copy has not been deployed.
+The live site is [https://bookleaf-author-support-portal.netlify.app](https://bookleaf-author-support-portal.netlify.app). The browser calls `/api/v1` on that host. Netlify proxies those requests to the API at [https://bookleaf-author-support-portal-api.onrender.com](https://bookleaf-author-support-portal-api.onrender.com). Session cookies are stored on the Netlify host. A direct browser call to the Render host is a third-party request, and Chrome drops the cookie.
 
-1. Create a MongoDB database and set `MONGODB_URI`.
-2. Set unique `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET`.
-3. Set `NODE_ENV=production`, `COOKIE_SECURE=true`, and `CORS_ORIGIN` to the frontend origin.
-4. Leave `COOKIE_SAMESITE=lax`. The browser calls the API through the frontend host.
-5. Build and start the API: `npm run build && npm start`.
-6. Use `GET /api/v1/health` as the health check.
-7. Run `npm run seed` once against that database.
-8. Leave `VITE_API_URL` empty. The site proxies `/api/v1` to the API.
-9. Put the same Pusher key in `VITE_PUSHER_KEY` and the secret only on the API.
+Health check: `GET https://bookleaf-author-support-portal-api.onrender.com/api/v1/health`.
 
-Suitable hosts are Render, Railway, or Fly for the API, and any static host for the Vite build. Do not use the embedded local database in production.
+### Backend on Render
 
-Netlify can publish the frontend from the repository root. `netlify.toml` builds `@bookleaf/shared`, then the frontend, and publishes `frontend/dist`. `frontend/public/_redirects` is copied into that folder on every Vite build. Application paths rewrite to `index.html` with status 200. `/api/*` is proxied to the Render API, so the browser stores the session cookie on the Netlify host. Leave `VITE_API_URL` empty in the Netlify UI, then redeploy the site.
+Connect the GitHub repository. Leave **Root Directory** empty so the install runs from the repository root. `@bookleaf/shared` is a workspace package and is not published to npm.
+
+| Setting | Value |
+| --- | --- |
+| Root Directory | empty |
+| Build Command | `npm ci && npm run build --workspace=backend` |
+| Start Command | `npm start` |
+| Health Check Path | `/api/v1/health` |
+| Node | `22` |
+
+`npm start` runs `node dist/server.js` inside `backend`. esbuild is a production dependency, so `npm ci` with `NODE_ENV=production` can still build the bundle. `dist/` is gitignored and must be produced on Render. The process listens on `0.0.0.0` and uses the `PORT` Render injects. Do not set `PORT`.
+
+Environment:
+
+| Variable | Value |
+| --- | --- |
+| `NODE_ENV` | `production` |
+| `MONGODB_URI` | Production MongoDB connection string. Required. An empty value or a placeholder host refuses to start |
+| `JWT_ACCESS_SECRET` | Random secret, at least 32 characters, different from the refresh secret |
+| `JWT_REFRESH_SECRET` | A second random secret, at least 32 characters |
+| `COOKIE_SECURE` | `true` |
+| `COOKIE_SAMESITE` | `lax` |
+| `CORS_ORIGIN` | `https://bookleaf-author-support-portal.netlify.app` |
+
+Enter Render values without surrounding quote characters. A `#` in a demo password is kept when the value is pasted as plain text. Do not put `AI_API_KEY` or `PUSHER_SECRET` on Netlify.
+
+After the first successful boot, seed that database once from a machine that has the production `MONGODB_URI`:
+
+```bash
+npm run seed
+```
+
+`npm run seed` uses `tsx`, which is a development dependency, so it is not part of the Render production install. The seed is idempotent: it keeps the 10 sample authors, 18 books, and the admin account, and it resets the demo passwords. It does not delete tickets.
+
+Pushing `main` does not restart Render unless auto-deploy is on. If the live API still returns the previous behavior, open the service and choose **Manual Deploy** for the latest commit.
+
+### Frontend on Netlify
+
+`netlify.toml` builds `@bookleaf/shared`, then the frontend, and publishes `frontend/dist`. Leave the Netlify base directory empty. Leave `VITE_API_URL` empty. An absolute API URL is ignored so requests stay on the Netlify origin.
+
+`frontend/public/_redirects` is copied into `frontend/dist` on every Vite build. Application paths rewrite to `index.html`. `/api/*` proxies to `https://bookleaf-author-support-portal-api.onrender.com/api/:splat`.
+
+Changing the proxy target or the cookie rules requires a new deploy of both hosts. The API deploy must finish before the site is checked, because Netlify only forwards `/api` to whatever Render is currently running.
 
 ## Known limitations
 
@@ -213,7 +247,6 @@ Netlify can publish the frontend from the repository root. `netlify.toml` builds
 - There is no password reset, email notification, or multi-admin assignment directory.
 - The fallback classifier is a rubric for outages. It is not a substitute for the model.
 - Live OpenAI and Pusher calls were not executed here.
-- The app is not deployed.
 
 ## Future improvements
 
@@ -236,6 +269,7 @@ Netlify can publish the frontend from the repository root. `netlify.toml` builds
 - `Invalid environment configuration`: run `npm run setup` or fill the secrets in `backend/.env`.
 - Port already in use: stop the other API or change `PORT`.
 - Local Mongo lock: stop the previous `npm run dev` before starting another one. Both use `backend/.data/mongo`.
-- Login returns a CSRF error: refresh the page so `/api/v1/auth/csrf` can set the cookie, and confirm the request URL is the Netlify host, not the Render host.
-- Cookies fail in production: redeploy Netlify so `/api` is proxied. `CORS_ORIGIN` stays the Netlify origin and `COOKIE_SECURE=true`.
+- Login returns a CSRF error: the request URL must be `https://bookleaf-author-support-portal.netlify.app/api/v1/...`. A URL on `onrender.com` means the published frontend is still calling the API host directly. Redeploy Netlify with `VITE_API_URL` empty.
+- A signed-out `GET /api/v1/auth/me` returns `200` and `{ "user": null }`. A `401` with `UNAUTHENTICATED` on that call means Render is still running an older build. Deploy the latest commit on the API service.
+- Cookies fail in production: `CORS_ORIGIN` is `https://bookleaf-author-support-portal.netlify.app`, `COOKIE_SECURE=true`, and `COOKIE_SAMESITE=lax`.
 - Classification stays on the fallback: `AI_API_KEY` is empty or the provider returned an error. The admin can still set the category and send a reply.
