@@ -85,9 +85,9 @@ paths:
       summary: Current user
       responses:
         "200":
-          description: Current user
+          description: Current user, or user null when no access cookie is present
         "401":
-          description: Not signed in
+          description: Access cookie is present but no longer valid
   /author/dashboard:
     get:
       tags: [Author]

@@ -87,8 +87,8 @@ describe("authentication and author isolation", () => {
     const failed = await login("priya.sharma@email.com", "wrong-password-1");
     expect(failed.response.status).toBe(401);
     const me = await request(app).get("/api/v1/auth/me");
-    expect(me.status).toBe(401);
-    expect(me.body.error.code).toBe("UNAUTHENTICATED");
+    expect(me.status).toBe(200);
+    expect(me.body.user).toBeNull();
 
     const agent = request.agent(app);
     const token = await csrf(agent);
@@ -215,6 +215,18 @@ describe("authentication and author isolation", () => {
     expect(blocked.status).toBe(403);
     expect(blocked.body.error.code).toBe("CSRF_REJECTED");
 
+    const proxied = await request(app)
+      .get("/api/v1/auth/csrf")
+      .set("Origin", origin)
+      .set("Host", host)
+      .set("X-Forwarded-Host", "bookleaf-author-support-portal.netlify.app")
+      .set("X-Forwarded-Proto", "https");
+    const proxiedCookies = Array.isArray(proxied.headers["set-cookie"]) ? proxied.headers["set-cookie"] : [];
+    const proxiedCookie = proxiedCookies.find((cookie) => cookie.startsWith("bookleaf_csrf="));
+    expect(proxiedCookie).toContain("SameSite=Lax");
+    expect(proxiedCookie).not.toContain("SameSite=None");
+    expect(proxiedCookie).not.toContain("Partitioned");
+
     const foreign = await request(app).get("/api/v1/auth/csrf").set("Origin", "https://evil.example").set("Host", host);
     expect(foreign.headers["access-control-allow-origin"]).toBeUndefined();
     const foreignCookies = Array.isArray(foreign.headers["set-cookie"]) ? foreign.headers["set-cookie"] : [];
@@ -285,8 +297,8 @@ describe("authentication and author isolation", () => {
     const loggedOutAgain = await signedIn.agent.post("/api/v1/auth/logout").set("X-CSRF-Token", signedIn.token);
     expect(loggedOutAgain.status).toBe(200);
     const after = await signedIn.agent.get("/api/v1/auth/me");
-    expect(after.status).toBe(401);
-    expect(after.body.error.code).toBe("UNAUTHENTICATED");
+    expect(after.status).toBe(200);
+    expect(after.body.user).toBeNull();
   });
 
   it("updates the same accounts when seed runs again after an email change", async () => {

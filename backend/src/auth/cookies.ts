@@ -14,6 +14,16 @@ function allowedOrigins(): string[] {
     .filter((origin) => origin.length > 0);
 }
 
+/** Host the browser used. Netlify's proxy sets X-Forwarded-Host to the site, while Host is the API. */
+export function browserHostname(req: Request): string {
+  const forwarded = req.get("x-forwarded-host");
+  if (forwarded) {
+    const hostname = forwarded.split(",")[0]?.trim().toLowerCase().split(":")[0] ?? "";
+    if (hostname) return hostname;
+  }
+  return req.hostname;
+}
+
 /** A credentialed browser call from another host cannot send a SameSite=Lax cookie. */
 export function crossSiteRequest(req: Request): boolean {
   const origin = req.get("origin");
@@ -24,7 +34,7 @@ export function crossSiteRequest(req: Request): boolean {
   } catch {
     return false;
   }
-  return originHost.length > 0 && originHost !== req.hostname;
+  return originHost.length > 0 && originHost !== browserHostname(req);
 }
 
 function baseOptions(req: Request): AppCookieOptions {

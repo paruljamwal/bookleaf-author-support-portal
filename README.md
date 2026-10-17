@@ -92,7 +92,7 @@ Frontend:
 
 | Variable | Purpose |
 | --- | --- |
-| `VITE_API_URL` | Empty in local dev, where Vite proxies `/api`. In production, the API origin plus `/api/v1` |
+| `VITE_API_URL` | Leave empty. The dev server and Netlify both serve `/api` on the page origin |
 | `VITE_PUSHER_KEY` | Public Pusher key |
 | `VITE_PUSHER_CLUSTER` | Pusher cluster |
 
@@ -194,16 +194,16 @@ This copy has not been deployed.
 1. Create a MongoDB database and set `MONGODB_URI`.
 2. Set unique `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET`.
 3. Set `NODE_ENV=production`, `COOKIE_SECURE=true`, and `CORS_ORIGIN` to the frontend origin.
-4. If the frontend is on another site, set `COOKIE_SAMESITE=none`.
+4. Leave `COOKIE_SAMESITE=lax`. The browser calls the API through the frontend host.
 5. Build and start the API: `npm run build && npm start`.
 6. Use `GET /api/v1/health` as the health check.
 7. Run `npm run seed` once against that database.
-8. Build the frontend with `VITE_API_URL` pointing at `https://<api-host>/api/v1`.
+8. Leave `VITE_API_URL` empty. The site proxies `/api/v1` to the API.
 9. Put the same Pusher key in `VITE_PUSHER_KEY` and the secret only on the API.
 
 Suitable hosts are Render, Railway, or Fly for the API, and any static host for the Vite build. Do not use the embedded local database in production.
 
-Netlify can publish the frontend from the repository root. `netlify.toml` builds `@bookleaf/shared`, then the frontend, and publishes `frontend/dist`. `frontend/public/_redirects` is copied into that folder on every Vite build. Application paths rewrite to `index.html` with status 200. Paths under `/api` stay a 404 on the static site so an API miss is not replaced by the React page. Set `VITE_API_URL` to the API origin before the Netlify build. This repository has not been deployed.
+Netlify can publish the frontend from the repository root. `netlify.toml` builds `@bookleaf/shared`, then the frontend, and publishes `frontend/dist`. `frontend/public/_redirects` is copied into that folder on every Vite build. Application paths rewrite to `index.html` with status 200. `/api/*` is proxied to the Render API, so the browser stores the session cookie on the Netlify host. Leave `VITE_API_URL` empty in the Netlify UI, then redeploy the site.
 
 ## Known limitations
 
@@ -236,6 +236,6 @@ Netlify can publish the frontend from the repository root. `netlify.toml` builds
 - `Invalid environment configuration`: run `npm run setup` or fill the secrets in `backend/.env`.
 - Port already in use: stop the other API or change `PORT`.
 - Local Mongo lock: stop the previous `npm run dev` before starting another one. Both use `backend/.data/mongo`.
-- Login returns a CSRF error: refresh the page so `/api/v1/auth/csrf` can set the cookie.
-- Cookies fail in production: the frontend and API origins, `CORS_ORIGIN`, `COOKIE_SECURE`, and `COOKIE_SAMESITE` have to match the deployment.
+- Login returns a CSRF error: refresh the page so `/api/v1/auth/csrf` can set the cookie, and confirm the request URL is the Netlify host, not the Render host.
+- Cookies fail in production: redeploy Netlify so `/api` is proxied. `CORS_ORIGIN` stays the Netlify origin and `COOKIE_SECURE=true`.
 - Classification stays on the fallback: `AI_API_KEY` is empty or the provider returned an error. The admin can still set the category and send a reply.

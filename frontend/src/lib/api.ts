@@ -1,8 +1,26 @@
 import axios from "axios";
 import type { ApiErrorBody } from "@bookleaf/shared";
 
+/**
+ * Calls stay on the page origin. Netlify proxies /api to the API, so the session cookie is first-party.
+ * A baked-in absolute API URL would make the browser talk to another site and drop that cookie.
+ */
+export function resolveApiBase(pageOrigin: string, configured: string | undefined): string {
+  const value = (configured ?? "").trim().replace(/\/$/, "");
+  if (!value) return "/api/v1";
+  try {
+    if (new URL(value, pageOrigin).origin === new URL(pageOrigin).origin) return value;
+  } catch {
+    return "/api/v1";
+  }
+  return "/api/v1";
+}
+
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "/api/v1",
+  baseURL: resolveApiBase(
+    typeof window === "undefined" ? "http://localhost" : window.location.origin,
+    import.meta.env.VITE_API_URL,
+  ),
   withCredentials: true,
 });
 

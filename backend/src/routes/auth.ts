@@ -108,6 +108,14 @@ authRouter.post(
 
 authRouter.get(
   "/me",
+  (req, res, next) => {
+    const access = req.cookies?.[ACCESS_COOKIE];
+    if (typeof access !== "string" || access.length === 0) {
+      res.json({ user: null });
+      return;
+    }
+    next();
+  },
   requireAuth,
   asyncHandler(async (req, res) => {
     if (!req.actor) throw new AppError(401, "UNAUTHENTICATED", "Sign in to continue.");

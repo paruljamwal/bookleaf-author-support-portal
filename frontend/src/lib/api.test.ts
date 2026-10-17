@@ -1,12 +1,27 @@
 import { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from "axios";
 import { afterEach, describe, expect, it } from "vitest";
-import { api, loadCsrf } from "./api";
+import { api, loadCsrf, resolveApiBase } from "./api";
 
 function reply(config: InternalAxiosRequestConfig, status: number, data: unknown): AxiosResponse {
   const response = { data, status, statusText: String(status), headers: {}, config };
   if (status >= 200 && status < 300) return response;
   throw new AxiosError("Request failed", AxiosError.ERR_BAD_REQUEST, config, null, response);
 }
+
+describe("api base", () => {
+  it("keeps a cross-origin API on the page origin so the session cookie can be stored", () => {
+    expect(
+      resolveApiBase(
+        "https://bookleaf-author-support-portal.netlify.app",
+        "https://bookleaf-author-support-portal-api.onrender.com/api/v1",
+      ),
+    ).toBe("/api/v1");
+    expect(resolveApiBase("http://localhost:5173", "")).toBe("/api/v1");
+    expect(resolveApiBase("http://localhost:5173", "http://localhost:5173/api/v1")).toBe(
+      "http://localhost:5173/api/v1",
+    );
+  });
+});
 
 describe("csrf header", () => {
   const original = api.defaults.adapter;

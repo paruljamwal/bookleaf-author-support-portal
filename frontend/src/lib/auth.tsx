@@ -22,7 +22,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryFn: async () => {
       await loadCsrf();
       try {
-        const response = await api.get<{ user: AuthUser }>("/auth/me");
+        const response = await api.get<{ user: AuthUser | null }>("/auth/me");
         return response.data.user;
       } catch (error) {
         if (axios.isAxiosError(error) && error.response?.status === 401) return null;
