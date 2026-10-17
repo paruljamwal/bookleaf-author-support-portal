@@ -51,17 +51,17 @@ export default function QueuePage() {
   return (
     <div>
       <PageHeader title="Ticket queue" description="Unresolved tickets are listed first, with higher priority and older tickets ahead of newer ones." />
-      <form className="mb-4 grid gap-3 rounded-2xl border border-border bg-surface p-4 md:grid-cols-5">
+      <form className="mb-4 grid grid-cols-1 gap-3 rounded-2xl border border-border bg-surface p-4 sm:grid-cols-2 xl:grid-cols-5">
         <Select label="Status" value={filters.status} onChange={(value) => update({ status: value as TicketStatus | "" })} options={TICKET_STATUSES.map((status) => [status, STATUS_LABELS[status]])} />
         <Select label="Category" value={filters.category} onChange={(value) => update({ category: value as TicketCategory | "" })} options={TICKET_CATEGORIES.map((category) => [category, CATEGORY_LABELS[category]])} />
         <Select label="Priority" value={filters.priority} onChange={(value) => update({ priority: value as TicketPriority | "" })} options={TICKET_PRIORITIES.map((priority) => [priority, PRIORITY_LABELS[priority]])} />
-        <label className="grid gap-1 text-sm font-semibold">
+        <label className="grid min-w-0 gap-1 text-sm font-semibold">
           From
-          <input type="date" value={filters.dateFrom} onChange={(event) => update({ dateFrom: event.target.value })} className="rounded-lg border border-border px-3 py-2 font-normal" />
+          <input type="date" value={filters.dateFrom} onChange={(event) => update({ dateFrom: event.target.value })} className="w-full min-w-0 rounded-lg border border-border bg-surface px-3 py-2 font-normal" />
         </label>
-        <label className="grid gap-1 text-sm font-semibold">
+        <label className="grid min-w-0 gap-1 text-sm font-semibold">
           To
-          <input type="date" value={filters.dateTo} onChange={(event) => update({ dateTo: event.target.value })} className="rounded-lg border border-border px-3 py-2 font-normal" />
+          <input type="date" value={filters.dateTo} onChange={(event) => update({ dateTo: event.target.value })} className="w-full min-w-0 rounded-lg border border-border bg-surface px-3 py-2 font-normal" />
         </label>
       </form>
       {query.isLoading ? <Skeleton className="h-64" /> : null}
@@ -135,9 +135,9 @@ function Select({
   options: (readonly [string, string])[];
 }) {
   return (
-    <label className="grid gap-1 text-sm font-semibold">
+    <label className="grid min-w-0 gap-1 text-sm font-semibold">
       {label}
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="rounded-lg border border-border px-3 py-2 font-normal">
+      <select value={value} onChange={(event) => onChange(event.target.value)} className="w-full min-w-0 rounded-lg border border-border bg-surface px-3 py-2 font-normal">
         <option value="">Any</option>
         {options.map(([optionValue, optionLabel]) => (
           <option key={optionValue} value={optionValue}>

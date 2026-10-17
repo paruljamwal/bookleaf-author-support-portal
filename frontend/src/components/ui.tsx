@@ -14,12 +14,14 @@ export function cx(...classes: Array<string | false | null | undefined>): string
 
 export function Button({
   variant = "primary",
+  size = "md",
   className,
   type = "button",
   ref,
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "secondary" | "ghost" | "danger";
+  size?: "md" | "sm";
   ref?: Ref<HTMLButtonElement>;
 }) {
   const styles = {
@@ -28,12 +30,17 @@ export function Button({
     ghost: "text-foreground hover:bg-accent",
     danger: "bg-danger text-white hover:opacity-90",
   }[variant];
+  const sizes = {
+    md: "px-4 py-2 text-sm",
+    sm: "h-8 px-2.5 text-xs",
+  }[size];
   return (
     <button
       ref={ref}
       type={type}
       className={cx(
-        "inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60",
+        "inline-flex items-center justify-center gap-1.5 rounded-lg font-semibold disabled:cursor-not-allowed disabled:opacity-60",
+        sizes,
         styles,
         className,
       )}

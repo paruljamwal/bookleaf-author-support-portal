@@ -1,8 +1,8 @@
 import type { AuthUser } from "@bookleaf/shared";
-import { BookOpen, LayoutDashboard, LifeBuoy, LogOut, Menu, Plus, Ticket, X } from "lucide-react";
+import { BookOpen, LayoutDashboard, LifeBuoy, LogOut, Menu, Plus, RefreshCw, Ticket, UserRound, X } from "lucide-react";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { useSupportRealtime } from "../hooks/useRealtime";
+import { useSupportRealtime, type RealtimeMode } from "../hooks/useRealtime";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { Logo } from "./Logo";
@@ -35,12 +35,16 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
           onClick={onNavigate}
           className={({ isActive }) =>
             cx(
-              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold",
-              isActive ? "bg-accent text-primary" : "text-foreground hover:bg-background",
+              "flex h-10 items-center gap-2.5 rounded-lg px-2.5 text-sm font-semibold",
+              isActive
+                ? "bg-accent text-primary shadow-[inset_3px_0_0_0_var(--color-primary)]"
+                : "text-foreground hover:bg-background",
             )
           }
         >
-          <link.icon aria-hidden="true" size={18} />
+          <span className="grid size-5 shrink-0 place-items-center">
+            <link.icon aria-hidden="true" size={18} />
+          </span>
           {link.label}
         </NavLink>
       ))}
@@ -57,14 +61,6 @@ export default function Shell() {
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
-  const status =
-    mode === "live"
-      ? "Live updates"
-      : mode === "reconnecting"
-        ? "Polling while reconnecting"
-        : "Polling every 8 seconds";
-  const shortStatus = mode === "live" ? "Live" : "Polling";
-
   useEffect(() => {
     if (!menuOpen) return;
     const previous = document.body.style.overflow;
@@ -109,19 +105,22 @@ export default function Shell() {
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:bg-surface focus:px-3 focus:py-2">
         Skip to content
       </a>
-      <aside className="hidden border-r border-border bg-surface lg:flex lg:flex-col lg:px-4 lg:py-5">
-        <Brand />
-        <div className="mt-8 flex-1">
+      <aside className="hidden border-r border-border bg-surface lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col lg:overflow-y-auto lg:px-3 lg:py-4">
+        <div className="px-1.5">
+          <Brand />
+        </div>
+        <div className="mt-5 flex-1">
           <NavItems />
         </div>
       </aside>
       <div className="min-w-0">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-surface px-4 py-3">
-          <div className="flex items-center gap-3">
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-surface px-3 sm:px-4">
+          <div className="flex min-w-0 items-center gap-2 lg:hidden">
             <Button
               ref={menuButtonRef}
               variant="ghost"
-              className="px-2 lg:hidden"
+              size="sm"
+              className="w-8 px-0"
               aria-label="Open menu"
               aria-expanded={menuOpen}
               aria-controls="mobile-nav"
@@ -129,20 +128,17 @@ export default function Shell() {
             >
               <Menu size={20} />
             </Button>
-            <div className="lg:hidden">
-              <Brand compact />
-            </div>
+            <Brand compact />
           </div>
-          <div className="flex items-center gap-3">
-            <p className="text-xs font-semibold tracking-wide text-muted uppercase" aria-live="polite">
-              <span className="sm:hidden">{shortStatus}</span>
-              <span className="hidden sm:inline">{status}</span>
-            </p>
-            <UserChip user={user} />
-            <Button variant="secondary" className="px-2 sm:px-4" onClick={() => void logout()}>
-              <LogOut size={16} aria-hidden="true" />
-              <span className="max-sm:sr-only">Log out</span>
-            </Button>
+          <div className="ml-auto flex min-w-0 items-center gap-2">
+            <ConnectionStatus mode={mode} />
+            <div className="flex min-w-0 items-center gap-1.5 rounded-xl border border-border bg-surface py-1 pr-1 pl-1.5">
+              <UserChip user={user} />
+              <Button variant="secondary" size="sm" aria-label="Log out" onClick={() => void logout()}>
+                <LogOut size={14} aria-hidden="true" />
+                <span className="hidden md:inline">Log out</span>
+              </Button>
+            </div>
           </div>
         </header>
         <main id="main" className="mx-auto max-w-6xl px-4 py-6">
@@ -178,24 +174,63 @@ export default function Shell() {
 
 function Brand({ compact = false }: { compact?: boolean }) {
   return (
-    <div className="flex items-center gap-3 text-primary">
-      <Logo className="h-9 w-9" />
-      {compact ? null : (
-        <div>
-          <p className="font-serif text-base font-semibold text-foreground">BookLeaf</p>
-          <p className="text-xs text-muted">Author Support</p>
-        </div>
-      )}
+    <div className="flex h-10 items-center gap-2.5 text-primary">
+      <span className={cx("grid shrink-0 place-items-center", compact ? "size-8" : "size-10")}>
+        <Logo className={compact ? "size-8" : "size-10"} />
+      </span>
+      <div className="min-w-0 leading-none">
+        <p className={cx("truncate font-serif font-semibold text-foreground", compact ? "text-sm" : "text-base")}>BookLeaf</p>
+        {compact ? null : <p className="mt-1 text-xs text-muted">Author Support</p>}
+      </div>
     </div>
   );
 }
 
+function ConnectionStatus({ mode }: { mode: RealtimeMode }) {
+  if (mode === "live") {
+    return (
+      <p className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background px-2 text-xs font-medium text-foreground" aria-live="polite">
+        <span className="size-1.5 rounded-full bg-success" aria-hidden="true" />
+        Live
+      </p>
+    );
+  }
+  const reconnecting = mode === "reconnecting";
+  return (
+    <p className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background px-2 text-xs font-medium text-muted" aria-live="polite">
+      <RefreshCw size={14} aria-hidden="true" />
+      <span className="hidden sm:inline">Auto-refresh · 8s</span>
+      <span className="sr-only sm:hidden">Auto-refresh every 8 seconds.</span>
+      {reconnecting ? <span className="sr-only">Reconnecting.</span> : null}
+    </p>
+  );
+}
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const first = parts[0];
+  const last = parts[parts.length - 1];
+  if (!first) return "";
+  if (parts.length === 1) return first.slice(0, 2).toUpperCase();
+  return `${first[0] ?? ""}${last?.[0] ?? ""}`.toUpperCase();
+}
+
 function UserChip({ user }: { user: AuthUser | null }) {
   if (!user) return null;
+  const role = user.role === "ADMIN" ? "Admin" : "Author";
+  const mark = initials(user.name);
   return (
-    <div className="hidden text-right sm:block">
-      <p className="text-sm font-semibold">{user.name}</p>
-      <p className="text-xs text-muted">{user.role === "ADMIN" ? "Admin" : "Author"}</p>
+    <div className="flex min-w-0 items-center gap-2">
+      <span className="grid size-7 shrink-0 place-items-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground" aria-hidden="true">
+        {mark || <UserRound size={14} />}
+      </span>
+      <div className="hidden min-w-0 max-w-36 sm:block">
+        <p className="truncate text-sm leading-4 font-semibold">{user.name}</p>
+        <p className="text-xs leading-4 text-muted">{role}</p>
+      </div>
+      <span className="sr-only sm:hidden">
+        {user.name}, {role}
+      </span>
     </div>
   );
 }
