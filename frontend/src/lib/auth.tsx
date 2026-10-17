@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AuthUser } from "@bookleaf/shared";
 import axios from "axios";
-import { createContext, useContext, useEffect, useMemo, type ReactNode } from "react";
+import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { defineAbilityFor, type AppAbility } from "@bookleaf/shared";
 import { api, loadCsrf } from "./api";
 
@@ -20,6 +20,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const query = useQuery({
     queryKey: ["me"],
     queryFn: async () => {
+      await loadCsrf();
       try {
         const response = await api.get<{ user: AuthUser }>("/auth/me");
         return response.data.user;
@@ -31,12 +32,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     retry: false,
     staleTime: 60_000,
   });
-
-  useEffect(() => {
-    if (!document.cookie.includes("bookleaf_csrf=")) {
-      void loadCsrf();
-    }
-  }, []);
 
   const value = useMemo<AuthState>(
     () => ({

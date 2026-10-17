@@ -33,12 +33,20 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
     if (typeof token !== "string" || token.length === 0) {
       throw new AppError(401, "UNAUTHENTICATED", "Sign in to continue.");
     }
-    const claims = verifyAccessToken(token);
+    let claims;
+    try {
+      claims = verifyAccessToken(token);
+    } catch (error) {
+      if (error instanceof AppError && error.status === 401) {
+        throw new AppError(401, "ACCESS_EXPIRED", "Sign in to continue.");
+      }
+      throw error;
+    }
     const user = await UserModel.findById(claims.sub).select(
       "email name role author authorPublicId tokenVersion",
     );
     if (!user || user.tokenVersion !== claims.tv) {
-      throw new AppError(401, "UNAUTHENTICATED", "Sign in to continue.");
+      throw new AppError(401, "ACCESS_EXPIRED", "Sign in to continue.");
     }
     const authorPublicId = user.authorPublicId ?? null;
     req.actor = {

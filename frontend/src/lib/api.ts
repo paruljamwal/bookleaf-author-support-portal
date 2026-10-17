@@ -61,7 +61,8 @@ api.interceptors.response.use(
     const skipRefresh = ["/auth/login", "/auth/register", "/auth/refresh", "/auth/csrf"].some((path) =>
       url.includes(path),
     );
-    if (error.response?.status !== 401 || config._retry || skipRefresh) throw error;
+    const code = (error.response?.data as ApiErrorBody | undefined)?.error?.code;
+    if (error.response?.status !== 401 || code !== "ACCESS_EXPIRED" || config._retry || skipRefresh) throw error;
     config._retry = true;
     refreshRequest ??= loadCsrf()
       .then(() => api.post("/auth/refresh"))

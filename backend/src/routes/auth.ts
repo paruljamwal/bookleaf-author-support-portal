@@ -1,6 +1,6 @@
-import { randomBytes } from "node:crypto";
 import { Router } from "express";
 import { loginSchema, registerSchema } from "@bookleaf/shared";
+import { issueCsrfToken } from "../auth/csrf-token.js";
 import {
   ACCESS_COOKIE,
   clearAuthCookies,
@@ -12,6 +12,7 @@ import {
 import { verifyAccessToken, verifyRefreshToken } from "../auth/tokens.js";
 import { asyncHandler } from "../lib/async.js";
 import { AppError } from "../lib/errors.js";
+import { logger } from "../lib/logger.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authenticate, refreshSession, registerAuthor, revokeSession } from "../services/auth.service.js";
 
@@ -45,7 +46,7 @@ export const authRouter = Router();
 authRouter.get(
   "/csrf",
   asyncHandler(async (req, res) => {
-    const token = randomBytes(32).toString("hex");
+    const token = issueCsrfToken();
     setCsrfCookie(req, res, token);
     res.json({ csrfToken: token });
   }),
@@ -76,9 +77,20 @@ authRouter.post(
   asyncHandler(async (req, res) => {
     const token = req.cookies?.[REFRESH_COOKIE];
     if (typeof token !== "string" || token.length === 0) {
-      throw new AppError(401, "UNAUTHENTICATED", "Your session has expired. Sign in again.");
+      logger.warn("refresh rejected", { reason: "refresh_cookie_missing" });
+      clearAuthCookies(req, res);
+      throw new AppError(401, "UNAUTHENTICATED", "Sign in to continue.");
     }
-    const accessToken = await refreshSession(token);
+    let accessToken: string;
+    try {
+      accessToken = await refreshSession(token);
+    } catch (error) {
+      if (error instanceof AppError && error.status === 401) {
+        logger.warn("refresh rejected", { reason: "refresh_not_accepted" });
+        clearAuthCookies(req, res);
+      }
+      throw error;
+    }
     setAccessCookie(req, res, accessToken);
     res.json({ ok: true });
   }),

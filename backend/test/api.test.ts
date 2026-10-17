@@ -88,12 +88,28 @@ describe("authentication and author isolation", () => {
     expect(failed.response.status).toBe(401);
     const me = await request(app).get("/api/v1/auth/me");
     expect(me.status).toBe(401);
+    expect(me.body.error.code).toBe("UNAUTHENTICATED");
+
+    const agent = request.agent(app);
+    const token = await csrf(agent);
+    const refresh = await agent.post("/api/v1/auth/refresh").set("X-CSRF-Token", token);
+    expect(refresh.status).toBe(401);
+    expect(refresh.body.error.code).toBe("UNAUTHENTICATED");
+
+    const blocked = await request(app).post("/api/v1/auth/refresh");
+    expect(blocked.status).toBe(403);
+    expect(blocked.body.error.code).toBe("CSRF_REJECTED");
   });
 
   it("signs in an author and hides another author's books", async () => {
-    const { agent, response } = await login("priya.sharma@email.com", "BookLeaf#Author1");
+    const { agent, token, response } = await login("priya.sharma@email.com", "BookLeaf#Author1");
     expect(response.status).toBe(200);
     expect(response.body.user.role).toBe("AUTHOR");
+    const me = await agent.get("/api/v1/auth/me");
+    expect(me.status).toBe(200);
+    expect(me.body.user.email).toBe("priya.sharma@email.com");
+    const refreshed = await agent.post("/api/v1/auth/refresh").set("X-CSRF-Token", token);
+    expect(refreshed.status).toBe(200);
     const books = await agent.get("/api/v1/author/books");
     expect(books.status).toBe(200);
     const titles = books.body.items.map((book: { title: string }) => book.title);
@@ -136,7 +152,7 @@ describe("authentication and author isolation", () => {
     const issued = await agent.get("/api/v1/auth/csrf");
     expect(issued.status).toBe(200);
     expect(issued.headers["content-type"]).toMatch(/application\/json/);
-    expect(issued.body.csrfToken).toMatch(/^[a-f0-9]{64}$/);
+    expect(issued.body.csrfToken).toMatch(/^[a-f0-9]{64}\.\d+\.[a-f0-9]{64}$/);
     const setCookie = issued.headers["set-cookie"];
     const cookies = Array.isArray(setCookie) ? setCookie : [];
     const csrfCookie = cookies.find((cookie) => cookie.startsWith("bookleaf_csrf="));
@@ -206,8 +222,27 @@ describe("authentication and author isolation", () => {
     expect(foreignCookie).not.toContain("SameSite=None");
     expect(foreignCookie).not.toContain("Partitioned");
 
-    await UserModel.deleteOne({ email: "cross.site@email.com" });
-    await AuthorModel.deleteOne({ email: "cross.site@email.com" });
+    const droppedCookie = await request(app)
+      .post("/api/v1/auth/register")
+      .set("Origin", origin)
+      .set("Host", host)
+      .set("X-CSRF-Token", token)
+      .send({ name: "Dropped Cookie", email: "dropped.cookie@email.com", password: "Register#Pass1" });
+    expect(droppedCookie.status).toBe(201);
+    expect(droppedCookie.body.user.role).toBe("AUTHOR");
+
+    const forged = `${token.slice(0, -1)}${token.endsWith("a") ? "b" : "a"}`;
+    const forgedHeader = await request(app)
+      .post("/api/v1/auth/register")
+      .set("Origin", origin)
+      .set("Host", host)
+      .set("X-CSRF-Token", forged)
+      .send({ name: "Forged Token", email: "forged.token@email.com", password: "Register#Pass1" });
+    expect(forgedHeader.status).toBe(403);
+    expect(forgedHeader.body.error.code).toBe("CSRF_REJECTED");
+
+    await UserModel.deleteMany({ email: { $in: ["cross.site@email.com", "dropped.cookie@email.com"] } });
+    await AuthorModel.deleteMany({ email: { $in: ["cross.site@email.com", "dropped.cookie@email.com"] } });
   });
 
   it("rejects login without a CSRF token", async () => {
@@ -236,6 +271,22 @@ describe("authentication and author isolation", () => {
       .set("X-CSRF-Token", token)
       .set("Cookie", [`bookleaf_csrf=${token}`, refreshPair ?? ""]);
     expect(replay.status).toBe(401);
+
+    const forged = await request(app)
+      .post("/api/v1/auth/refresh")
+      .set("X-CSRF-Token", token)
+      .set("Cookie", [`bookleaf_csrf=${token}`, "bookleaf_refresh=not-a-jwt"]);
+    expect(forged.status).toBe(401);
+    expect(forged.body.error.code).toBe("UNAUTHENTICATED");
+
+    const signedIn = await login("priya.sharma@email.com", "BookLeaf#Author1");
+    const me = await signedIn.agent.get("/api/v1/auth/me");
+    expect(me.status).toBe(200);
+    const loggedOutAgain = await signedIn.agent.post("/api/v1/auth/logout").set("X-CSRF-Token", signedIn.token);
+    expect(loggedOutAgain.status).toBe(200);
+    const after = await signedIn.agent.get("/api/v1/auth/me");
+    expect(after.status).toBe(401);
+    expect(after.body.error.code).toBe("UNAUTHENTICATED");
   });
 
   it("updates the same accounts when seed runs again after an email change", async () => {
