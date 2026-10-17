@@ -52,7 +52,8 @@ beforeAll(async () => {
   process.env.AI_AUTO_PROCESS = "false";
   process.env.AI_API_KEY = "";
   process.env.COOKIE_SECURE = "false";
-  process.env.CORS_ORIGIN = "http://localhost:5173";
+  process.env.CORS_ORIGIN =
+    "http://localhost:5173,https://bookleaf-author-support-portal.netlify.app";
   process.env.DEMO_AUTHOR_PASSWORD = "BookLeaf#Author1";
   process.env.DEMO_ADMIN_PASSWORD = "BookLeaf#Admin1";
   process.env.DEMO_ADMIN_EMAIL = "ops@bookleaf.demo";
@@ -162,6 +163,51 @@ describe("authentication and author isolation", () => {
     expect(mismatched.status).toBe(403);
     expect(mismatched.body.error.code).toBe("CSRF_REJECTED");
     expect(await UserModel.countDocuments({ email: { $in: ["no.token@email.com", "bad.token@email.com"] } })).toBe(0);
+  });
+
+  it("registers from the Netlify origin with a partitioned cross-site CSRF cookie", async () => {
+    const origin = "https://bookleaf-author-support-portal.netlify.app";
+    const host = "bookleaf-author-support-portal-api.onrender.com";
+    const issued = await request(app).get("/api/v1/auth/csrf").set("Origin", origin).set("Host", host);
+    expect(issued.status).toBe(200);
+    expect(issued.headers["access-control-allow-origin"]).toBe(origin);
+    expect(issued.headers["access-control-allow-credentials"]).toBe("true");
+    const setCookie = issued.headers["set-cookie"];
+    const cookies = Array.isArray(setCookie) ? setCookie : [];
+    const csrfCookie = cookies.find((cookie) => cookie.startsWith("bookleaf_csrf="));
+    expect(csrfCookie).toContain("SameSite=None");
+    expect(csrfCookie?.toLowerCase()).toContain("secure");
+    expect(csrfCookie).toContain("Partitioned");
+    const token = issued.body.csrfToken as string;
+
+    const created = await request(app)
+      .post("/api/v1/auth/register")
+      .set("Origin", origin)
+      .set("Host", host)
+      .set("X-CSRF-Token", token)
+      .set("Cookie", `bookleaf_csrf=${token}`)
+      .send({ name: "Cross Site", email: "cross.site@email.com", password: "Register#Pass1" });
+    expect(created.status).toBe(201);
+    expect(created.body.user.role).toBe("AUTHOR");
+
+    const blocked = await request(app)
+      .post("/api/v1/auth/register")
+      .set("Origin", origin)
+      .set("Host", host)
+      .set("Cookie", `bookleaf_csrf=${token}`)
+      .send({ name: "Missing Header", email: "missing.header@email.com", password: "Register#Pass1" });
+    expect(blocked.status).toBe(403);
+    expect(blocked.body.error.code).toBe("CSRF_REJECTED");
+
+    const foreign = await request(app).get("/api/v1/auth/csrf").set("Origin", "https://evil.example").set("Host", host);
+    expect(foreign.headers["access-control-allow-origin"]).toBeUndefined();
+    const foreignCookies = Array.isArray(foreign.headers["set-cookie"]) ? foreign.headers["set-cookie"] : [];
+    const foreignCookie = foreignCookies.find((cookie) => cookie.startsWith("bookleaf_csrf="));
+    expect(foreignCookie).not.toContain("SameSite=None");
+    expect(foreignCookie).not.toContain("Partitioned");
+
+    await UserModel.deleteOne({ email: "cross.site@email.com" });
+    await AuthorModel.deleteOne({ email: "cross.site@email.com" });
   });
 
   it("rejects login without a CSRF token", async () => {

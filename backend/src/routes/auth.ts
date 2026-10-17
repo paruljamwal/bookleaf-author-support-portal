@@ -44,9 +44,9 @@ export const authRouter = Router();
 
 authRouter.get(
   "/csrf",
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
     const token = randomBytes(32).toString("hex");
-    setCsrfCookie(res, token);
+    setCsrfCookie(req, res, token);
     res.json({ csrfToken: token });
   }),
 );
@@ -56,7 +56,7 @@ authRouter.post(
   asyncHandler(async (req, res) => {
     const body = registerSchema.parse(req.body);
     const session = await registerAuthor(body);
-    setAuthCookies(res, session.accessToken, session.refreshToken);
+    setAuthCookies(req, res, session.accessToken, session.refreshToken);
     res.status(201).json({ user: session.user });
   }),
 );
@@ -66,7 +66,7 @@ authRouter.post(
   asyncHandler(async (req, res) => {
     const body = loginSchema.parse(req.body);
     const session = await authenticate(body.email, body.password);
-    setAuthCookies(res, session.accessToken, session.refreshToken);
+    setAuthCookies(req, res, session.accessToken, session.refreshToken);
     res.json({ user: session.user });
   }),
 );
@@ -79,7 +79,7 @@ authRouter.post(
       throw new AppError(401, "UNAUTHENTICATED", "Your session has expired. Sign in again.");
     }
     const accessToken = await refreshSession(token);
-    setAccessCookie(res, accessToken);
+    setAccessCookie(req, res, accessToken);
     res.json({ ok: true });
   }),
 );
@@ -89,7 +89,7 @@ authRouter.post(
   asyncHandler(async (req, res) => {
     const userIds = sessionUserIds(req.cookies?.[ACCESS_COOKIE], req.cookies?.[REFRESH_COOKIE]);
     await Promise.all(userIds.map((userId) => revokeSession(userId)));
-    clearAuthCookies(res);
+    clearAuthCookies(req, res);
     res.json({ ok: true });
   }),
 );

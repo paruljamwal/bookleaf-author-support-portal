@@ -7,8 +7,8 @@ const env = getEnv();
 await connectDatabase();
 logConfigHint();
 const app = createApp();
-const server = app.listen(env.PORT, () => {
-  logger.info("api listening", { port: env.PORT });
+const server = app.listen(env.PORT, "0.0.0.0", () => {
+  logger.info("api listening", { port: env.PORT, host: "0.0.0.0" });
 });
 // Node's HTTP client keeps a socket briefly after the response. Closing it here first
 // surfaces as ECONNRESET, which the Vite proxy reports as an empty text/plain 500.

@@ -8,6 +8,24 @@ export const api = axios.create({
 
 /** Token from GET /auth/csrf. A cross-origin API cookie is not visible to document.cookie. */
 let csrfToken: string | null = null;
+let csrfRequest: Promise<string> | null = null;
+
+export function loadCsrf(): Promise<string> {
+  csrfRequest ??= api
+    .get<{ csrfToken?: unknown }>("/auth/csrf")
+    .then((response) => {
+      const token = response.data?.csrfToken;
+      if (typeof token !== "string" || token.length === 0) {
+        throw new Error("CSRF token missing");
+      }
+      csrfToken = token;
+      return token;
+    })
+    .finally(() => {
+      csrfRequest = null;
+    });
+  return csrfRequest;
+}
 
 function readCookie(name: string): string | null {
   const row = document.cookie.split("; ").find((part) => part.startsWith(`${name}=`));
@@ -45,13 +63,23 @@ api.interceptors.response.use(
     );
     if (error.response?.status !== 401 || config._retry || skipRefresh) throw error;
     config._retry = true;
-    refreshRequest ??= api
-      .post("/auth/refresh")
+    refreshRequest ??= loadCsrf()
+      .then(() => api.post("/auth/refresh"))
       .then(() => undefined)
       .finally(() => {
         refreshRequest = null;
       });
-    await refreshRequest;
+    try {
+      await refreshRequest;
+    } catch (refreshError) {
+      if (
+        axios.isAxiosError(refreshError) &&
+        (refreshError.response?.status === 401 || refreshError.response?.status === 403)
+      ) {
+        throw error;
+      }
+      throw refreshError;
+    }
     return api(config);
   },
 );

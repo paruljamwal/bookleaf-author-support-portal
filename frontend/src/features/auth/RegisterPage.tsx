@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useToast } from "../../components/toast";
 import { Button, Field, inputClass } from "../../components/ui";
-import { api, errorMessage } from "../../lib/api";
+import { api, errorMessage, loadCsrf } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { usePageTitle } from "../../lib/title";
 import { AuthLayout } from "./AuthLayout";
@@ -30,7 +30,7 @@ export default function RegisterPage() {
   async function onSubmit(values: RegisterInput) {
     setFormError(null);
     try {
-      await api.get("/auth/csrf");
+      await loadCsrf();
       const response = await api.post<{ user: { role: "AUTHOR" | "ADMIN" } }>("/auth/register", values);
       await queryClient.invalidateQueries({ queryKey: ["me"] });
       toast("Your author account is ready.");

@@ -3,7 +3,7 @@ import type { AuthUser } from "@bookleaf/shared";
 import axios from "axios";
 import { createContext, useContext, useEffect, useMemo, type ReactNode } from "react";
 import { defineAbilityFor, type AppAbility } from "@bookleaf/shared";
-import { api } from "./api";
+import { api, loadCsrf } from "./api";
 
 interface AuthState {
   user: AuthUser | null;
@@ -34,7 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!document.cookie.includes("bookleaf_csrf=")) {
-      void api.get("/auth/csrf");
+      void loadCsrf();
     }
   }, []);
 

@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { Button, Field, inputClass } from "../../components/ui";
-import { api, errorMessage } from "../../lib/api";
+import { api, errorMessage, loadCsrf } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { usePageTitle } from "../../lib/title";
 import { AuthLayout } from "./AuthLayout";
@@ -25,7 +25,7 @@ export default function LoginPage() {
   async function onSubmit(values: LoginInput) {
     setFormError(null);
     try {
-      await api.get("/auth/csrf");
+      await loadCsrf();
       const response = await api.post<{ user: { role: "AUTHOR" | "ADMIN" } }>("/auth/login", values);
       await queryClient.invalidateQueries({ queryKey: ["me"] });
       navigate(response.data.user.role === "ADMIN" ? "/admin" : "/author");
